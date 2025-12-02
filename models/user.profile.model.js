@@ -1,24 +1,27 @@
 import { mongoose, Schema } from "mongoose";
 
-const UserProfileSchema = new Schema({
-  salonOwnerName: {
-    type: String,
-    required: true,
+const UserProfileSchema = new Schema(
+  {
+    salonOwnerName: {
+      type: String,
+      required: true,
+    },
+    salonOwnerEmail: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    salonID: {
+      type: Schema.Types.ObjectId,
+      ref: "Salon Profile",
+    },
+    chats: {
+      type: [Schema.Types.ObjectId],
+      ref: "Chat",
+    },
   },
-  salonOwnerEmail: {
-    type: String,
-    required: true,
-    unique: true,
-  },
-  salonID: {
-    type: Schema.Types.ObjectId,
-    ref: "Salon Profile",
-  },
-  chats: {
-    type: [Schema.Types.ObjectId],
-    ref: "Chat",
-  },
-});
+  { timestamps: true }
+);
 
 const UserProfileSchemaModel = mongoose.model(
   "Salon Owner Profile",
