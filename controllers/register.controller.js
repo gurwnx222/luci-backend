@@ -1,5 +1,5 @@
 import { UserProfileSchemaModel } from "../models/index.js";
-
+import mongoose from "mongoose";
 // registering salon owner profile
 export const registerSalonOwnerProfile = async (req, res) => {
   try {
@@ -32,16 +32,38 @@ export const registerSalonOwnerProfile = async (req, res) => {
 
 // fetching salon owner profile
 export const fetchSalonOwnerProfile = async (req, res) => {
-  const { _id } = req.body;
-  if (!_id)
-    return res.status(400).json({
-      message: "Id is not provided",
-      status: 400,
+  try {
+    const { _id } = req.body;
+    if (!_id) {
+      return res.status(400).json({
+        message: "ID is not provided",
+        status: 400,
+      });
+    }
+    if (!mongoose.Types.ObjectId.isValid(_id)) {
+      return res.status(400).json({
+        message: "Invalid ID format",
+        status: 400,
+      });
+    }
+    const fetchingSalonOwner = await UserProfileSchemaModel.findById(_id);
+    if (!fetchingSalonOwner) {
+      return res.status(404).json({
+        message: "Salon owner profile not found",
+        status: 404,
+      });
+    }
+    return res.status(200).json({
+      message: "Salon owner profile fetched successfully",
+      status: 200,
+      data: fetchingSalonOwner,
     });
-  const fetchingSalonOwner = UserProfileSchemaModel.findById(_id);
-  if (!fetchingSalonOwner)
+  } catch (error) {
+    console.error("Error fetching salon owner profile:", error);
     return res.status(500).json({
-      message: "Error fetching the salon owner profile.",
+      message: "Internal server error while fetching profile",
+      status: 500,
+      error: error.message,
     });
-  console.log("Fetched salon owner:", fetchingSalonOwner);
+  }
 };

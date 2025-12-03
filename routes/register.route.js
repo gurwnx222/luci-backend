@@ -9,6 +9,6 @@ const router = Router();
 
 //implemented routing on register controller
 router.post("/register-salon-owner", registerSalonOwnerProfile);
-router.get("/fetch-salon-owner-profile", fetchSalonOwnerProfile);
+router.post("/fetch-salon-owner-profile", fetchSalonOwnerProfile);
 
 export default router;
