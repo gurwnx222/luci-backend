@@ -1,0 +1,14 @@
+import {
+  registerSalonOwnerProfile,
+  fetchSalonOwnerProfile,
+} from "../controllers/register.controller";
+
+//imported route module for routing
+import { Router } from "express";
+const router = Router();
+
+//implemented routing on register controller
+router.post("/register-salon-owner", registerSalonOwnerProfile);
+router.get("/fetch-salon-owner-profile", fetchSalonOwnerProfile);
+
+export default router;
