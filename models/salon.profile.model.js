@@ -36,7 +36,7 @@ const SalonProfileSchema = new Schema(
         },
         message: "Image URL must be a valid HTTP/HTTPS URL",
       },
-      required: true,
+      required: false,
     },
     priceRange: {
       type: String,
@@ -45,7 +45,7 @@ const SalonProfileSchema = new Schema(
       required: true,
     },
     typesOfMassages: {
-      type: String,
+      type: [String],
       enum: [
         "Neck/Shoulder",
         "Oil massage",
@@ -55,7 +55,13 @@ const SalonProfileSchema = new Schema(
         "Foot massage",
         "others",
       ],
-      required: true,
+      required: [true, "At least one massage type is required"],
+      validate: {
+        validator: function (arr) {
+          return arr && arr.length > 0; // Ensure at least one type is selected
+        },
+        message: "At least one massage type must be selected",
+      },
     },
     subscriptionID: {
       type: Schema.Types.ObjectId,
