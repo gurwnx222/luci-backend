@@ -1,5 +1,5 @@
 import express from "express";
-import salonOwnerRouter from "./routes/register.route";
+import salonOwnerRouter from "./routes/register.route.js";
 const app = express();
 
 // Basic middleware

@@ -1,7 +1,7 @@
 import {
   registerSalonOwnerProfile,
   fetchSalonOwnerProfile,
-} from "../controllers/register.controller";
+} from "../controllers/register.controller.js";
 
 //imported route module for routing
 import { Router } from "express";
