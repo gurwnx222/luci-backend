@@ -1,5 +1,5 @@
 import { SalonProfileSchemaModel } from "../models";
-import NodeGeocoder from "node-geocoder";
+
 export const createSalonProfile = async (req, res) => {
   try {
     const {
