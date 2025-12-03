@@ -2,7 +2,6 @@ import {
   registerSalonOwnerProfile,
   fetchSalonOwnerProfile,
 } from "../controllers/register.controller.js";
-
 //imported route module for routing
 import { Router } from "express";
 const router = Router();

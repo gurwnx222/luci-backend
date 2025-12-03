@@ -1,5 +1,6 @@
 import express from "express";
 import salonOwnerRouter from "./routes/register.route.js";
+import { createSalonProfile } from "./controllers/salon.profile.controller.js";
 const app = express();
 
 // Basic middleware
@@ -8,6 +9,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // main route
 app.use("/api/v1", salonOwnerRouter);
+app.use("/api/v1", createSalonProfile);
 app.get("/", (req, res) => {
   res.json({
     message: "Express server is running!",

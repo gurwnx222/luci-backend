@@ -15,9 +15,14 @@ const SalonProfileSchema = new Schema(
         type: String,
         required: true,
       },
+      province: {
+        type: String,
+        required: true,
+      },
       country: {
         type: String,
         required: true,
+        default: "Thailand",
       },
       latitude: {
         type: Number,
