@@ -1,82 +1,116 @@
+// controllers/salon.profile.controller.js
+
 import { SalonProfileSchemaModel } from "../models/index.js";
 import { geocodeAddress } from "../utils/NodeGeocoder.js";
-import mongoose from "mongoose"; // ✅ Add this import if missing
+import { UploadOnImageKit } from "../utils/ImageKit.js";
+import mongoose from "mongoose";
+
+/**
+ * Helper function to clean up uploaded file
+ */
+import { cleanUploadedFile } from "../utils/cleanUploadedFile.js";
 
 export const createSalonProfile = async (req, res) => {
+  const uploadedFilePath = req.file?.path;
+
   try {
-    const {
-      salonName,
-      salonImage,
-      location,
-      priceRange,
-      typesOfMassages,
-      subscriptionID,
-    } = req.body;
+    const { salonName, priceRange, subscriptionID, location, typesOfMassages } =
+      req.body;
 
-    // Comprehensive validation
+    // ===== VALIDATION SECTION =====
+
+    // Validate salon name
     if (!salonName) {
+      cleanUploadedFile(uploadedFilePath);
       return res.status(400).json({
         success: false,
-        message: "Salon name is required",
+        message: "Salon name is required and must be a non-empty string",
       });
     }
 
-    // Validate location object
-    if (!location || typeof location !== "object") {
+    // Validate salon image
+    /*if (!req.file) {
       return res.status(400).json({
         success: false,
-        message: "Location information is required",
+        message: "Salon image is required",
+      });
+    } */
+
+    // Validate location object (should already be parsed by middleware)
+    if (!location || typeof location !== "object" || Array.isArray(location)) {
+      cleanUploadedFile(uploadedFilePath);
+      return res.status(400).json({
+        success: false,
+        message: "Location information is required and must be a valid object",
+        hint: "Ensure location is sent as a JSON string in form-data",
       });
     }
 
-    const { streetAddress, city, province, country, latitude, longitude } =
-      location;
+    const { streetAddress, city, province, country } = location;
 
-    if (!streetAddress || !city || !country || !province) {
+    if (!streetAddress || !city || !province || !country) {
+      cleanUploadedFile(uploadedFilePath);
       return res.status(400).json({
         success: false,
-        message:
-          "Complete location details (street address, city, province, country) are required",
+        message: "Complete location details are required",
+        required: ["streetAddress", "city", "province", "country"],
+        received: {
+          streetAddress: !!streetAddress,
+          city: !!city,
+          province: !!province,
+          country: !!country,
+        },
       });
     }
 
-    if (!priceRange) {
+    // Validate price range
+    if (!priceRange || typeof priceRange !== "number") {
+      cleanUploadedFile(uploadedFilePath);
       return res.status(400).json({
         success: false,
         message: "Price range is required",
       });
     }
 
-    // Validate massage types
-    if (
-      !typesOfMassages ||
-      !Array.isArray(typesOfMassages) ||
-      typesOfMassages.length === 0
-    ) {
+    // Validate massage types (should already be parsed by middleware)
+    if (!Array.isArray(typesOfMassages) || typesOfMassages.length === 0) {
+      cleanUploadedFile(uploadedFilePath);
       return res.status(400).json({
         success: false,
         message: "At least one massage type must be selected",
+        hint: "Ensure typesOfMassages is sent as a JSON array string in form-data",
       });
     }
 
     // Validate subscriptionID if provided
     if (subscriptionID && !mongoose.Types.ObjectId.isValid(subscriptionID)) {
+      cleanUploadedFile(uploadedFilePath);
       return res.status(400).json({
         success: false,
         message: "Invalid subscription ID format",
       });
     }
+
+    // ===== GEOCODING SECTION =====
+
     let geoDataLatLot;
     try {
+      console.log("Geocoding address:", {
+        streetAddress,
+        city,
+        province,
+        country,
+      });
       geoDataLatLot = await geocodeAddress({
         streetAddress,
         city,
         province,
         country,
       });
-      console.log("Geo Data for lat-lot conversion: ", geoDataLatLot);
+      console.log("Geocoding result:", geoDataLatLot);
     } catch (geoError) {
-      console.error("Geocoding failed:", geoError.message);
+      cleanUploadedFile(uploadedFilePath);
+      console.error("Geocoding failed:", geoError);
       return res.status(400).json({
         success: false,
         message:
@@ -86,17 +120,42 @@ export const createSalonProfile = async (req, res) => {
       });
     }
 
-    if (!geoDataLatLot || !geoDataLatLot.latitude || !geoDataLatLot.longitude) {
+    if (!geoDataLatLot?.latitude || !geoDataLatLot?.longitude) {
+      cleanUploadedFile(uploadedFilePath);
       return res.status(400).json({
         success: false,
         message: "Could not determine coordinates for the provided address",
       });
     }
 
-    // Create new salon profile
+    // ===== IMAGE UPLOAD SECTION =====
+
+    let imageKitResponse;
+    try {
+      console.log("Uploading image to ImageKit:", uploadedFilePath);
+      imageKitResponse = await UploadOnImageKit(uploadedFilePath);
+      console.log("ImageKit upload successful:", imageKitResponse.url);
+    } catch (uploadError) {
+      cleanUploadedFile(uploadedFilePath);
+      console.error("ImageKit upload failed:", uploadError);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to upload image to storage",
+        error:
+          process.env.NODE_ENV === "development"
+            ? uploadError.message
+            : undefined,
+      });
+    } finally {
+      // Always clean up the temporary file after ImageKit upload attempt
+      cleanUploadedFile(uploadedFilePath);
+    }
+
+    // ===== DATABASE SAVE SECTION =====
+
     const newSalonProfile = new SalonProfileSchemaModel({
-      salonName,
-      salonImage,
+      salonName: salonName.trim(),
+      salonImage: imageKitResponse.url,
       location: {
         streetAddress,
         city,
@@ -110,8 +169,9 @@ export const createSalonProfile = async (req, res) => {
       subscriptionID: subscriptionID || undefined,
     });
 
-    // Save to database
     const savedSalonProfile = await newSalonProfile.save();
+
+    console.log("Salon profile created successfully:", savedSalonProfile._id);
 
     return res.status(201).json({
       success: true,
@@ -119,6 +179,9 @@ export const createSalonProfile = async (req, res) => {
       data: savedSalonProfile,
     });
   } catch (error) {
+    // Clean up file in case of any unhandled errors
+    cleanUploadedFile(uploadedFilePath);
+
     console.error("Error creating salon profile:", error);
 
     // Handle Mongoose validation errors
@@ -133,9 +196,10 @@ export const createSalonProfile = async (req, res) => {
 
     // Handle duplicate key errors (unique fields)
     if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern || {})[0];
       return res.status(409).json({
         success: false,
-        message: "A salon with this information already exists",
+        message: `A salon with this ${field || "information"} already exists`,
       });
     }
 

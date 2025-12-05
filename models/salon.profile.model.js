@@ -9,28 +9,28 @@ const SalonProfileSchema = new Schema(
     location: {
       streetAddress: {
         type: String,
-        required: true,
+        required: false,
       },
       city: {
         type: String,
-        required: true,
+        required: false,
       },
       province: {
         type: String,
-        required: true,
+        required: false,
       },
       country: {
         type: String,
-        required: true,
+        required: false,
         default: "Thailand",
       },
       latitude: {
         type: Number,
-        required: true,
+        required: false,
       },
       longitude: {
         type: Number,
-        required: true,
+        required: false,
       },
     },
     salonImage: {
@@ -60,7 +60,7 @@ const SalonProfileSchema = new Schema(
         "Foot massage",
         "others",
       ],
-      required: [true, "At least one massage type is required"],
+      required: [false, "At least one massage type is required"],
       validate: {
         validator: function (arr) {
           return arr && arr.length > 0; // Ensure at least one type is selected
