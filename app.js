@@ -10,7 +10,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // main route
 app.use("/api/v1", salonOwnerRouter);
-//app.use("/api/v1", createSalonProfile);
+app.use("/api/v1", createSalonProfile);
 app.use("/api/v1", uploadTest);
 app.get("/", (req, res) => {
   res.json({

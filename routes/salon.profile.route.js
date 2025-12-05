@@ -1,15 +1,16 @@
 // routes/salon.profile.routes.js
-
+import { upload, handleMulterError } from "../middlewares/mutler.middleware.js";
 import { createSalonProfile } from "../controllers/salon.profile.controller.js";
 import { nestedJsonParser } from "../middlewares/jsonParser.middleware.js";
 import { Router } from "express";
 
 const router = Router();
 
-// CORRECT ORDER: multer → error handler → JSON parser → controller
 router.post(
   "/register-salon-profile",
-  // 3. Parse JSON strings from form-data
+  upload,
+  handleMulterError,
+  nestedJsonParser,
   createSalonProfile // 4. Handle the request
 );
 
