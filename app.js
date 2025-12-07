@@ -1,17 +1,33 @@
 import express from "express";
-import salonOwnerRouter from "./routes/register.route.js";
+import salonOwnerRoutes from "./routes/register.route.js";
 import createSalonProfile from "./routes/salon.profile.route.js";
-import uploadTest from "./routes/uploadTest.route.js";
+import bookingRoutes from "./routes/booking.route.js";
+import notificationRoutes from "./routes/notification.route.js";
+
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const app = express();
 
 // Basic middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
+app.use(express.static(path.join(__dirname, "public")));
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept"
+  );
+  next();
+});
 // main route
-app.use("/api/v1", salonOwnerRouter);
-app.use("/api/v1", createSalonProfile);
-app.use("/api/v1", uploadTest);
+app.use("/api/v1/register", salonOwnerRoutes);
+app.use("/api/v1/register", createSalonProfile);
+app.use("/api/v1/bookings", bookingRoutes);
+app.use("/api/v1/notifications", notificationRoutes);
 app.get("/", (req, res) => {
   res.json({
     message: "Express server is running!",

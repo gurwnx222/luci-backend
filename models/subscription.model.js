@@ -6,6 +6,10 @@ const SubscriptionSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Salon Profile",
     },
+    stripeSubscriptionId: {
+      type: String,
+      default: null,
+    },
     planType: {
       type: String,
       enum: ["Free", "Basic", "Standard", "Premium"],

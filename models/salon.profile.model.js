@@ -68,10 +68,6 @@ const SalonProfileSchema = new Schema(
         message: "At least one massage type must be selected",
       },
     },
-    subscriptionID: {
-      type: Schema.Types.ObjectId,
-      ref: "Subscription",
-    },
   },
   { timestamps: true }
 );

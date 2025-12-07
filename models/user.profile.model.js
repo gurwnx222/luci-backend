@@ -48,6 +48,10 @@ const UserProfileSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Salon Profile",
     },
+    subscriptionID: {
+      type: Schema.Types.ObjectId,
+      ref: "Subscription",
+    },
     chats: {
       type: [Schema.Types.ObjectId],
       ref: "Chat",

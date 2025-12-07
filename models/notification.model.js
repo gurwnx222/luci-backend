@@ -1,28 +1,57 @@
-import { mongoose, Schema } from "mongoose";
+import mongoose, { Schema } from "mongoose";
 
 const NotificationSchema = new Schema(
   {
-    //mongo db id of the user to whom the notification is sent
-    userID: {
+    userId: {
       type: Schema.Types.ObjectId,
       ref: "Salon Owner Profile",
       required: true,
+      index: true, // For fast queries
     },
     type: {
       type: String,
-      enum: ["booking_request", "booking_update", "system"],
+      enum: ["NEW_BOOKING", "BOOKING_CANCELLED", "BOOKING_UPDATED", "SYSTEM"],
       required: true,
     },
-    payload: { type: Schema.Types.Mixed }, // e.g. { bookingId, requesterName, snippet }
-    read: { type: Boolean, default: false, index: true },
-    createdAt: { type: Date, default: Date.now, index: true },
+    title: {
+      type: String,
+      required: true,
+    },
+    message: {
+      type: String,
+      required: true,
+    },
+    // Store the full booking or relevant data
+    data: {
+      type: Schema.Types.Mixed, // Flexible - can store any JSON
+      required: true,
+    },
+    // Link to the booking if applicable
+    bookingId: {
+      type: Schema.Types.ObjectId,
+      ref: "Booking",
+      default: null,
+    },
+    read: {
+      type: Boolean,
+      default: false,
+      index: true, // For fast unread queries
+    },
+    readAt: {
+      type: Date,
+      default: null,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true, // Adds createdAt and updatedAt
+  }
 );
 
-const NotificationSchemaModel = mongoose.model(
-  "Notification",
-  NotificationSchema
-);
+// Index for common queries
+NotificationSchema.index({ userId: 1, read: 1, createdAt: -1 });
 
-export default NotificationSchemaModel;
+const NotificationModel =
+  mongoose.models.Notification ||
+  mongoose.model("Notification", NotificationSchema);
+
+export default NotificationModel;

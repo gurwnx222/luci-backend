@@ -1,6 +1,9 @@
 // controllers/salon.profile.controller.js
 
-import { SalonProfileSchemaModel } from "../models/index.js";
+import {
+  SalonProfileSchemaModel,
+  UserProfileSchemaModel,
+} from "../models/index.js";
 import { geocodeAddress } from "../utils/NodeGeocoder.js";
 import { UploadOnImageKit } from "../utils/ImageKit.js";
 import mongoose from "mongoose";
@@ -14,8 +17,63 @@ export const createSalonProfile = async (req, res) => {
   const uploadedFilePath = req.file?.path;
 
   try {
-    const { salonName, priceRange, subscriptionID, location, typesOfMassages } =
-      req.body;
+    const {
+      salonName,
+      priceRange,
+      subscriptionID,
+      location,
+      typesOfMassages,
+      ownerEmail,
+      ownerName,
+    } = req.body;
+
+    // ===== OWNER VALIDATION =====
+
+    // Validate owner email and name are provided
+    if (!ownerEmail || !ownerName) {
+      cleanUploadedFile(uploadedFilePath);
+      return res.status(400).json({
+        success: false,
+        message: "Owner email and name are required",
+        required: ["ownerEmail", "ownerName"],
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(ownerEmail)) {
+      cleanUploadedFile(uploadedFilePath);
+      return res.status(400).json({
+        success: false,
+        message: "Invalid email format",
+      });
+    }
+
+    // Find the salon owner by email and name
+    const salonOwner = await UserProfileSchemaModel.findOne({
+      email: ownerEmail.toLowerCase().trim(),
+      name: ownerName.trim(),
+    });
+
+    if (!salonOwner) {
+      cleanUploadedFile(uploadedFilePath);
+      return res.status(404).json({
+        success: false,
+        message:
+          "Salon owner not found with the provided email and name. Please ensure you are registered first.",
+      });
+    }
+
+    // Check if the owner already has a salon profile
+    if (salonOwner.salonProfileId) {
+      cleanUploadedFile(uploadedFilePath);
+      return res.status(400).json({
+        success: false,
+        message:
+          "This owner already has a salon profile. Each owner can only create one salon profile.",
+        existingProfileId: salonOwner.salonProfileId,
+      });
+    }
 
     // ===== VALIDATION SECTION =====
 
@@ -29,12 +87,12 @@ export const createSalonProfile = async (req, res) => {
     }
 
     // Validate salon image
-    /*if (!req.file) {
+    if (!req.file) {
       return res.status(400).json({
         success: false,
         message: "Salon image is required",
       });
-    } */
+    }
 
     // Validate location object (should already be parsed by middleware)
     if (!location || typeof location !== "object" || Array.isArray(location)) {
@@ -171,12 +229,28 @@ export const createSalonProfile = async (req, res) => {
 
     const savedSalonProfile = await newSalonProfile.save();
 
-    console.log("Salon profile created successfully:", savedSalonProfile._id);
+    // ===== UPDATE SALON OWNER WITH PROFILE ID =====
+
+    // Attach the salon profile ID to the salon owner
+    salonOwner.salonProfileId = savedSalonProfile._id;
+    await salonOwner.save();
+
+    console.log("Salon profile created and linked to owner:", {
+      profileId: savedSalonProfile._id,
+      ownerId: salonOwner._id,
+      ownerEmail: ownerEmail,
+      ownerName: ownerName,
+    });
 
     return res.status(201).json({
       success: true,
-      message: "Salon profile created successfully",
-      data: savedSalonProfile,
+      message: "Salon profile created and linked to your account successfully",
+      data: {
+        salonProfile: savedSalonProfile,
+        ownerId: salonOwner._id,
+        ownerEmail: salonOwner.email,
+        ownerName: salonOwner.name,
+      },
     });
   } catch (error) {
     // Clean up file in case of any unhandled errors
