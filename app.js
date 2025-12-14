@@ -3,6 +3,7 @@ import salonOwnerRoutes from "./routes/register.route.js";
 import createSalonProfile from "./routes/salon.profile.route.js";
 import bookingRoutes from "./routes/booking.route.js";
 import notificationRoutes from "./routes/notification.route.js";
+import recommendationRoutes from "./routes/recommendation.route.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -28,6 +29,7 @@ app.use("/api/v1/register", salonOwnerRoutes);
 app.use("/api/v1/register", createSalonProfile);
 app.use("/api/v1/bookings", bookingRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
+app.use("/api/v1/recommendations", recommendationRoutes);
 app.get("/", (req, res) => {
   res.json({
     message: "Express server is running!",
