@@ -51,8 +51,8 @@ export const createSalonProfile = async (req, res) => {
 
     // Find the salon owner by email and name
     const salonOwner = await UserProfileSchemaModel.findOne({
-      email: ownerEmail.toLowerCase().trim(),
-      name: ownerName.trim(),
+      salonOwnerEmail: ownerEmail.toLowerCase().trim(),
+      salonOwnerName: ownerName.trim(),
     });
 
     if (!salonOwner) {
@@ -121,8 +121,8 @@ export const createSalonProfile = async (req, res) => {
       });
     }
 
-    // Validate price range
-    if (!priceRange || typeof priceRange !== "number") {
+    // Validate price range (can be string or number, will be stored as string)
+    if (!priceRange || (typeof priceRange !== "string" && typeof priceRange !== "number")) {
       cleanUploadedFile(uploadedFilePath);
       return res.status(400).json({
         success: false,

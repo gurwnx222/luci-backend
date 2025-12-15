@@ -3,6 +3,7 @@ import SalonProfileSchemaModel from "./salon.profile.model.js";
 import SubscriptionSchemaModel from "./subscription.model.js";
 import BookingSchemaModel from "./booking.model.js";
 import NotificationSchemaModel from "./notification.model.js";
+import RecommendationMatchModel from "./recommendation.match.model.js";
 
 export {
   UserProfileSchemaModel,
@@ -10,4 +11,5 @@ export {
   SubscriptionSchemaModel,
   BookingSchemaModel,
   NotificationSchemaModel,
+  RecommendationMatchModel,
 };
