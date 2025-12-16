@@ -1,5 +1,4 @@
 import { getRecommendations } from "../utils/recommendationAlgorithm.js";
-import { BookingSchemaModel } from "../models/index.js";
 
 /**
  * Get personalized salon recommendations for a user
@@ -10,18 +9,6 @@ export const getUserRecommendations = async (req, res) => {
     const { userId } = req.params; // userId is firebaseUID
     const { limit = 20, latitude, longitude } = req.query;
 
-    // Validate user exists by checking if they have any bookings
-    const userBookings = await BookingSchemaModel.findOne({
-      "requester.firebaseUID": userId,
-    });
-
-    if (!userBookings) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found or has no booking history",
-      });
-    }
-
     // Parse location if provided
     let userLocation = null;
     if (latitude && longitude) {
@@ -31,7 +18,7 @@ export const getUserRecommendations = async (req, res) => {
       };
     }
 
-    // Get recommendations
+    // Get recommendations (algorithm handles users with no booking history)
     const recommendations = await getRecommendations(
       userId,
       userLocation,
@@ -42,6 +29,12 @@ export const getUserRecommendations = async (req, res) => {
       success: true,
       count: recommendations.length,
       recommendations,
+      // Include message for new users with no booking history
+      message: recommendations.length === 0 
+        ? "No salons available at the moment" 
+        : recommendations.some(r => r.reasons?.includes("Previously visited"))
+          ? undefined 
+          : "Personalized recommendations will appear after your first accepted booking",
     });
   } catch (error) {
     console.error("Error getting recommendations:", error);
@@ -63,18 +56,6 @@ export const getCustomRecommendations = async (req, res) => {
     const { limit = 20, latitude, longitude, preferredServices, priceRange } =
       req.body;
 
-    // Validate user exists by checking if they have any bookings
-    const userBookings = await BookingSchemaModel.findOne({
-      "requester.firebaseUID": userId,
-    });
-
-    if (!userBookings) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found or has no booking history",
-      });
-    }
-
     // Parse location
     let userLocation = null;
     if (latitude && longitude) {
@@ -84,7 +65,7 @@ export const getCustomRecommendations = async (req, res) => {
       };
     }
 
-    // Get recommendations
+    // Get recommendations (algorithm handles users with no booking history)
     const recommendations = await getRecommendations(
       userId,
       userLocation,
