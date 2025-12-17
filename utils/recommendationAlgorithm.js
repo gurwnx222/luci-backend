@@ -226,9 +226,7 @@ const calculateRelevanceScore = (salon, userPreferences, userLocation) => {
 
   // Price range match (0-25 points)
   if (userPreferences.priceRange) {
-    const salonAvgPrice = salon.priceRange
-      ? parseFloat(salon.priceRange)
-      : 0;
+    const salonAvgPrice = salon.priceRange ? parseFloat(salon.priceRange) : 0;
 
     if (
       salonAvgPrice >= userPreferences.priceRange.min &&
@@ -262,8 +260,7 @@ const calculateRelevanceScore = (salon, userPreferences, userLocation) => {
 
     if (distance <= userPreferences.locationPattern.maxDistance) {
       score +=
-        25 *
-        (1 - distance / userPreferences.locationPattern.maxDistance);
+        25 * (1 - distance / userPreferences.locationPattern.maxDistance);
     }
   } else {
     score += 12.5; // Neutral score
@@ -293,12 +290,16 @@ export const getRecommendations = async (
     const weekStart = getWeekStart();
     const subscribedSalons = await getAvailableSubscribedSalons(weekStart);
 
-    // Get all active salons (non-subscribed)
-    const allSalons = await SalonProfileSchemaModel.find({}).lean();
+    // 🔥 CRITICAL: Fetch all active salons with ownerId field included
+    const allSalons = await SalonProfileSchemaModel.find({})
+      .select(
+        "_id salonName salonImage location priceRange typesOfMassages rating totalReviews ownerId"
+      )
+      .lean();
 
     // Get subscription IDs for subscribed salons
-    const subscribedSalonIds = subscribedSalons.map(
-      (item) => item.salon._id.toString()
+    const subscribedSalonIds = subscribedSalons.map((item) =>
+      item.salon._id.toString()
     );
 
     // Filter out subscribed salons from all salons list
@@ -384,18 +385,20 @@ export const getRecommendations = async (
       }
     }
 
-    // Return recommendations with metadata
+    // 🔥 CRITICAL: Return recommendations with ownerId included
     return recommendations.map((rec) => ({
       salon: {
         _id: rec.salon._id,
         salonName: rec.salon.salonName,
         name: rec.salon.salonName,
+        salonImage: rec.salon.salonImage,
         location: rec.salon.location,
         priceRange: rec.salon.priceRange,
         typesOfMassages: rec.salon.typesOfMassages,
         rating: rec.salon.rating || 0,
         totalReviews: rec.salon.totalReviews || 0,
         isSubscribed: rec.isSubscribed,
+        ownerId: rec.salon.ownerId, // 🔥 CRITICAL: Include ownerId for booking requests
       },
       score: rec.score,
       reasons: generateRecommendationReasons(rec.salon, userPreferences),
@@ -440,4 +443,3 @@ const generateRecommendationReasons = (salon, userPreferences) => {
 
   return reasons.length > 0 ? reasons : ["Popular choice"];
 };
-

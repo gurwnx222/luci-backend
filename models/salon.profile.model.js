@@ -2,6 +2,12 @@ import { mongoose, Schema } from "mongoose";
 
 const SalonProfileSchema = new Schema(
   {
+    ownerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "UserProfile",
+      required: [true, "Owner ID is required"],
+      index: true, // Add index for faster queries
+    },
     salonName: {
       type: String,
       required: true,

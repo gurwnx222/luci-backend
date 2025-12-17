@@ -122,7 +122,10 @@ export const createSalonProfile = async (req, res) => {
     }
 
     // Validate price range (can be string or number, will be stored as string)
-    if (!priceRange || (typeof priceRange !== "string" && typeof priceRange !== "number")) {
+    if (
+      !priceRange ||
+      (typeof priceRange !== "string" && typeof priceRange !== "number")
+    ) {
       cleanUploadedFile(uploadedFilePath);
       return res.status(400).json({
         success: false,
@@ -280,6 +283,174 @@ export const createSalonProfile = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Error creating salon profile",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * Fetch all salon profiles with owner information
+ * GET /api/v1/salons
+ */
+export const fetchAllSalonProfiles = async (req, res) => {
+  try {
+    const { limit = 10, page = 1 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const salons = await SalonProfileSchemaModel.find({})
+      .select(
+        "_id salonName salonImage location priceRange typesOfMassages ownerId"
+      )
+      .limit(parseInt(limit))
+      .skip(skip)
+      .lean();
+
+    const total = await SalonProfileSchemaModel.countDocuments();
+
+    return res.status(200).json({
+      success: true,
+      message: "Salon profiles fetched successfully",
+      count: salons.length,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit)),
+      data: salons,
+    });
+  } catch (error) {
+    console.error("Error fetching salon profiles:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching salon profiles",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * Fetch single salon profile by ID with owner information
+ * GET /api/v1/salons/:salonId
+ */
+export const fetchSalonProfileById = async (req, res) => {
+  try {
+    const { salonId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(salonId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid salon ID format",
+      });
+    }
+
+    const salon = await SalonProfileSchemaModel.findById(salonId)
+      .select(
+        "_id salonName salonImage location priceRange typesOfMassages ownerId"
+      )
+      .lean();
+
+    if (!salon) {
+      return res.status(404).json({
+        success: false,
+        message: "Salon profile not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Salon profile fetched successfully",
+      data: salon,
+    });
+  } catch (error) {
+    console.error("Error fetching salon profile:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching salon profile",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * Fetch salon profile with populated owner details
+ * GET /api/v1/salons/:salonId/with-owner
+ */
+export const fetchSalonWithOwnerDetails = async (req, res) => {
+  try {
+    const { salonId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(salonId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid salon ID format",
+      });
+    }
+
+    const salon = await SalonProfileSchemaModel.findById(salonId)
+      .populate({
+        path: "ownerId",
+        select: "_id salonOwnerName salonOwnerEmail",
+      })
+      .lean();
+
+    if (!salon) {
+      return res.status(404).json({
+        success: false,
+        message: "Salon profile not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Salon profile with owner details fetched successfully",
+      data: salon,
+    });
+  } catch (error) {
+    console.error("Error fetching salon with owner details:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching salon profile",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * Fetch salon profile by owner ID
+ * GET /api/v1/salons/owner/:ownerId
+ */
+export const fetchSalonByOwnerId = async (req, res) => {
+  try {
+    const { ownerId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(ownerId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid owner ID format",
+      });
+    }
+
+    const salon = await SalonProfileSchemaModel.findOne({ ownerId })
+      .select(
+        "_id salonName salonImage location priceRange typesOfMassages ownerId"
+      )
+      .lean();
+
+    if (!salon) {
+      return res.status(404).json({
+        success: false,
+        message: "No salon profile found for this owner",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Salon profile fetched successfully",
+      data: salon,
+    });
+  } catch (error) {
+    console.error("Error fetching salon by owner ID:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching salon profile",
       error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
