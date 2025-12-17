@@ -228,6 +228,8 @@ export const createSalonProfile = async (req, res) => {
       priceRange,
       typesOfMassages,
       subscriptionID: subscriptionID || undefined,
+      // Ensure ownerId is linked so /with-owner populates correctly
+      ownerId: salonOwner._id,
     });
 
     const savedSalonProfile = await newSalonProfile.save();

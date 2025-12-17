@@ -30,15 +30,23 @@ export const getUserRecommendations = async (req, res) => {
     );
 
     // 🔥 Ensure each salon has ownerId for booking requests
-    const recommendationsWithOwner = recommendations.map((rec) => ({
-      ...rec,
-      salon: {
-        ...rec.salon,
-        // ownerId should already be in salon data from DB
-        // but we ensure it's present
-        ownerId: rec.salon.ownerId || rec.salon.owner?._id,
-      },
-    }));
+    const recommendationsWithOwner = recommendations.map((rec) => {
+      const ownerId = rec.salon.ownerId || rec.salon.owner?._id;
+
+      return {
+        // Flatten core identifiers so frontend can access them directly
+        _id: rec.salon._id,
+        salonName: rec.salon.salonName,
+        ownerId,
+        // Keep original structured data as well
+        salon: {
+          ...rec.salon,
+          ownerId,
+        },
+        score: rec.score,
+        reasons: rec.reasons,
+      };
+    });
 
     res.json({
       success: true,

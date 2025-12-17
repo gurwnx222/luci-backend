@@ -25,8 +25,10 @@ app.use((req, res, next) => {
   next();
 });
 // main route
-app.use("/api/v1/register", salonOwnerRoutes);
+app.use("/api/v1", salonOwnerRoutes);
+// Salon profile routes are available under both /register and /salons for backward compatibility
 app.use("/api/v1/register", createSalonProfile);
+app.use("/api/v1/salons", createSalonProfile);
 app.use("/api/v1/bookings", bookingRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
 app.use("/api/v1/recommendations", recommendationRoutes);
