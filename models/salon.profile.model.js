@@ -4,8 +4,10 @@ const SalonProfileSchema = new Schema(
   {
     ownerId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "UserProfile",
-      required: [true, "Owner ID is required"],
+      // Must match the model name defined in user.profile.model.js
+      ref: "Salon Owner Profile",
+      // Owner can be attached later; not required at creation time
+      required: false,
       index: true, // Add index for faster queries
     },
     salonName: {

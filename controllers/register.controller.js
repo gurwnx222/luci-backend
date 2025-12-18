@@ -1,5 +1,6 @@
 import { UserProfileSchemaModel } from "../models/index.js";
 import mongoose from "mongoose";
+import { cleanUploadedFile } from "../utils/cleanUploadedFile.js";
 // registering salon owner profile
 // controllers/salon.profile.controller.js
 
@@ -17,6 +18,49 @@ export const registerSalonOwnerProfile = async (req, res) => {
       ownerName,
     } = req.body;
 
+    // === SIMPLE OWNER REGISTRATION MODE (docs: SalonOwnerName + SalonOwnerEmail only) ===
+    // If salonName is missing but ownerEmail/ownerName are provided,
+    // treat this as a plain salon-owner registration and skip salon profile logic.
+    if (!salonName && ownerEmail && ownerName) {
+      try {
+        // Check if owner already exists
+        let existingOwner = await UserProfileSchemaModel.findOne({
+          salonOwnerEmail: ownerEmail.toLowerCase().trim(),
+        });
+
+        if (existingOwner) {
+          return res.status(200).json({
+            success: true,
+            data: existingOwner,
+            message: "Salon owner already registered",
+          });
+        }
+
+        const newOwner = new UserProfileSchemaModel({
+          salonOwnerName: ownerName,
+          salonOwnerEmail: ownerEmail,
+        });
+        const savedOwner = await newOwner.save();
+
+        return res.status(201).json({
+          success: true,
+          data: savedOwner,
+          message: "Salon owner registered successfully",
+        });
+      } catch (ownerError) {
+        return res.status(500).json({
+          success: false,
+          message: "Error registering salon owner",
+          error:
+            process.env.NODE_ENV === "development"
+              ? ownerError.message
+              : undefined,
+        });
+      }
+    }
+
+    // ===== FULL SALON PROFILE CREATION MODE =====
+    // From here on we expect full salon profile payload (including salonName, image, location, etc.)
     // ===== OWNER VALIDATION =====
     if (!ownerEmail || !ownerName) {
       cleanUploadedFile(uploadedFilePath);
