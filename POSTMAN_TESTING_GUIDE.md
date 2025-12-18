@@ -230,6 +230,92 @@ Content-Type: application/json
 
 ---
 
+## Testing New User Experience (No Booking History)
+
+**This tests the fix for new users who haven't made any bookings yet.**
+
+### Test Case 1: New User with No Bookings
+
+**Endpoint:** `GET http://localhost:3000/api/v1/recommendations/new_user_999?limit=20`
+
+**Expected Behavior:**
+- ✅ Returns **HTTP 200** (not 404!)
+- ✅ Returns all available salons
+- ✅ Includes message: `"Personalized recommendations will appear after your first accepted booking"`
+- ✅ Subscribed salons appear first (boosted)
+- ✅ Salons ranked by rating and subscription status
+
+**Expected Response:**
+```json
+{
+  "success": true,
+  "count": 5,
+  "message": "Personalized recommendations will appear after your first accepted booking",
+  "recommendations": [
+    {
+      "salon": {
+        "_id": "...",
+        "salonName": "Elite Relax Studio",
+        "location": {...},
+        "priceRange": "3000",
+        "typesOfMassages": ["Oil massage"],
+        "isSubscribed": true
+      },
+      "score": 62.5,
+      "reasons": ["Popular choice"]
+    },
+    ...
+  ]
+}
+```
+
+### Test Case 2: User with Booking History
+
+**Prerequisites:** Follow Steps 1-4 above to create a booking and accept it.
+
+**Endpoint:** `GET http://localhost:3000/api/v1/recommendations/test_user_123?limit=20&latitude=24.8607&longitude=67.0011`
+
+**Expected Behavior:**
+- ✅ Returns **HTTP 200**
+- ✅ Returns personalized recommendations
+- ✅ No message field (or message is undefined)
+- ✅ Salons ranked by personal preferences
+- ✅ Previously visited salons have higher scores
+
+**Expected Response:**
+```json
+{
+  "success": true,
+  "count": 5,
+  "recommendations": [
+    {
+      "salon": {
+        "_id": "...",
+        "salonName": "Elite Relax Studio",
+        ...
+        "isSubscribed": false
+      },
+      "score": 95.5,
+      "reasons": ["Offers Oil massage", "Previously visited"]
+    },
+    ...
+  ]
+}
+```
+
+### Test Case 3: Compare Before/After
+
+**Before the fix:**
+- New user → HTTP 404 with error message
+- User blocked from browsing salons
+
+**After the fix:**
+- New user → HTTP 200 with all salons
+- User can browse and discover salons immediately
+- Message explains personalization will improve after first booking
+
+---
+
 ## Quick Test Script
 
 If you want to test quickly, you can create multiple bookings with the same `firebaseUID` to build up booking history:

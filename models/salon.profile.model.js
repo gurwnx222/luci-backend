@@ -2,6 +2,14 @@ import { mongoose, Schema } from "mongoose";
 
 const SalonProfileSchema = new Schema(
   {
+    ownerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      // Must match the model name defined in user.profile.model.js
+      ref: "Salon Owner Profile",
+      // Owner can be attached later; not required at creation time
+      required: false,
+      index: true, // Add index for faster queries
+    },
     salonName: {
       type: String,
       required: true,
