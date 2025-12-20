@@ -16,7 +16,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // ============================================
 // MONGODB CONNECTION
 // ============================================
-const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://gurwindercto:vxULMNjUCzXtOs8J@ld01.einvpqx.mongodb.net/?appName=LD017';
+const MONGO_URI = process.env.MONGO_URI;
 
 mongoose
   .connect(MONGO_URI, {
