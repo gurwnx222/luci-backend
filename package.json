@@ -14,11 +14,13 @@
   "dependencies": {
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "http": "^0.0.1-security",
     "imagekit": "^6.0.0",
     "mongodb": "^7.0.0",
     "mongoose": "^9.0.0",
     "multer": "^2.0.2",
-    "node-geocoder": "^4.4.1"
+    "node-geocoder": "^4.4.1",
+    "socket.io": "^4.8.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.11"
