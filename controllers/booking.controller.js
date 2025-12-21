@@ -225,12 +225,8 @@ export const patchBookingRequest = async (req, res) => {
         status: status,
         requestedDateTime: booking.appointmentDetails.requestedDateTime,
         durationMinutes: booking.appointmentDetails.durationMinutes,
-        salonOwnerId: salonOwnerId.toString(),
-        salonOwnerName: booking.reciever?.salonName || "Salon Owner",
       },
       conversationId: conversation?._id || null,
-      salonOwnerId: salonOwnerId.toString(),
-      salonOwnerName: booking.reciever?.salonName || "Salon Owner",
     });
 
     // Send notification to salon owner via SSE
