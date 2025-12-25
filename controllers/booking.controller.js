@@ -14,9 +14,10 @@ import {
 
 export const createBookingRequest = async (req, res) => {
   try {
-    // the salon and owner id sent from luci-app
+    // Support both salon and private massager bookings
     const {
       salonId,
+      privateMassagerId,
       salonOwnerId,
       firebaseUID,
       name,
@@ -27,9 +28,24 @@ export const createBookingRequest = async (req, res) => {
       durationMinutes,
     } = req.body;
 
-    // Validation
+    // Validation: Either salonId or privateMassagerId must be provided
+    if (!salonId && !privateMassagerId) {
+      return res.status(400).json({
+        success: false,
+        error: "Either salonId or privateMassagerId is required",
+      });
+    }
+
+    // Both cannot be provided at the same time
+    if (salonId && privateMassagerId) {
+      return res.status(400).json({
+        success: false,
+        error: "Cannot provide both salonId and privateMassagerId. Provide only one.",
+      });
+    }
+
+    // Validate required fields
     if (
-      !salonId ||
       !salonOwnerId ||
       !firebaseUID ||
       !name ||
@@ -38,15 +54,31 @@ export const createBookingRequest = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        error: "Missing required fields",
+        error: "Missing required fields: salonOwnerId, firebaseUID, name, email, requestedDateTime",
       });
     }
 
+    // Determine provider type
+    const providerType = salonId ? "salon" : "privateMassager";
+
     // 1. Create the booking
+    const bookingData = {
+      reciever: {
+        salonOwnerID: salonOwnerId,
+        providerType: providerType,
+      },
+    };
+
+    // Add the appropriate provider ID
+    if (salonId) {
+      bookingData.reciever.salonId = salonId;
+    } else {
+      bookingData.reciever.privateMassagerId = privateMassagerId;
+    }
+
     const booking = await BookingSchemaModel.create({
       reciever: {
-        salonId,
-        salonOwnerID: salonOwnerId,
+        ...bookingData.reciever,
       },
       requester: {
         firebaseUID,
@@ -302,8 +334,10 @@ export const getAllBookingsForSalon = async (req, res) => {
 
     console.log("🔍 Query:", JSON.stringify(query, null, 2));
 
+    // Build populate options based on provider type
     const bookings = await BookingSchemaModel.find(query)
-      .populate("reciever.salonId", "name address")
+      .populate("reciever.salonId", "salonName salonImage location priceRange typesOfMassages")
+      .populate("reciever.privateMassagerId", "profilePhoto photos height weight aboutMe occupation gender")
       .sort({ "appointmentDetails.requestedDateTime": -1 });
     
     console.log(`✅ Found ${bookings.length} bookings for salon owner ${salonOwnerId}`);
@@ -362,8 +396,9 @@ export const getBookingById = async (req, res) => {
     }
 
     const booking = await BookingSchemaModel.findById(id)
-      .populate("reciever.salonId", "name address")
-      .populate("reciever.salonOwnerID", "name email");
+      .populate("reciever.salonId", "salonName salonImage location priceRange typesOfMassages")
+      .populate("reciever.privateMassagerId", "profilePhoto photos height weight aboutMe occupation gender")
+      .populate("reciever.salonOwnerID", "salonOwnerName salonOwnerEmail");
 
     if (!booking) {
       return res.status(404).json({
