@@ -5,6 +5,7 @@ import {
   SubscriptionSchemaModel,
   UserProfileSchemaModel,
   SalonProfileSchemaModel,
+  PrivateMassagerSchemaModel,
 } from "../models/index.js";
 
 // Initialize Stripe with your secret key
@@ -21,6 +22,7 @@ export const createSubscription = async (req, res) => {
       planType,
       billingCycle,
       paymentMethodId, // Stripe payment method ID from frontend
+      subscriptionType = "Salon", // Default to "Salon" for backward compatibility
     } = req.body;
 
     // ===== VALIDATION =====
@@ -57,24 +59,32 @@ export const createSubscription = async (req, res) => {
       });
     }
 
-    // ===== FIND SALON OWNER =====
+    // Validate subscription type
+    if (!["Salon", "PrivateMassager"].includes(subscriptionType)) {
+      return res.status(400).json({
+        success: false,
+        message: "Subscription type must be either 'Salon' or 'PrivateMassager'",
+      });
+    }
 
-    const salonOwner = await UserProfileSchemaModel.findOne({
-      email: ownerEmail.toLowerCase().trim(),
-      name: ownerName.trim(),
+    // ===== FIND OWNER =====
+
+    const owner = await UserProfileSchemaModel.findOne({
+      salonOwnerEmail: ownerEmail.toLowerCase().trim(),
+      salonOwnerName: ownerName.trim(),
     });
 
-    if (!salonOwner) {
+    if (!owner) {
       return res.status(404).json({
         success: false,
-        message: "Salon owner not found with the provided email and name",
+        message: "Owner not found with the provided email and name",
       });
     }
 
     // Check if owner already has an active subscription
-    if (salonOwner.subscriptionId) {
+    if (owner.subscriptionId) {
       const existingSubscription = await SubscriptionSchemaModel.findById(
-        salonOwner.subscriptionId
+        owner.subscriptionId
       );
       if (existingSubscription && existingSubscription.status === "Active") {
         return res.status(400).json({
@@ -84,6 +94,17 @@ export const createSubscription = async (req, res) => {
           existingSubscription,
         });
       }
+    }
+
+    // ===== FIND PROFILE BASED ON TYPE =====
+    let profileId = null;
+    if (subscriptionType === "Salon") {
+      profileId = owner.salonProfileId || null;
+    } else if (subscriptionType === "PrivateMassager") {
+      const privateMassager = await PrivateMassagerSchemaModel.findOne({
+        ownerId: owner._id,
+      });
+      profileId = privateMassager?._id || null;
     }
 
     // ===== PRICING LOGIC =====
@@ -97,7 +118,7 @@ export const createSubscription = async (req, res) => {
 
     // ===== STRIPE INTEGRATION =====
 
-    let stripeCustomerId = salonOwner.stripeCustomerId;
+    let stripeCustomerId = owner.stripeCustomerId;
     let stripeSubscriptionId = null;
 
     // For paid plans, create Stripe subscription
@@ -106,18 +127,19 @@ export const createSubscription = async (req, res) => {
         // Create or retrieve Stripe customer
         if (!stripeCustomerId) {
           const customer = await stripe.customers.create({
-            email: ownerEmail,
-            name: ownerName,
+            email: ownerEmail.toLowerCase().trim(),
+            name: ownerName.trim(),
             payment_method: paymentMethodId,
             invoice_settings: {
               default_payment_method: paymentMethodId,
             },
             metadata: {
-              salonOwnerId: salonOwner._id.toString(),
+              ownerId: owner._id.toString(),
+              subscriptionType,
             },
           });
           stripeCustomerId = customer.id;
-          salonOwner.stripeCustomerId = stripeCustomerId;
+          owner.stripeCustomerId = stripeCustomerId;
         } else {
           // Attach payment method to existing customer
           await stripe.paymentMethods.attach(paymentMethodId, {
@@ -152,7 +174,8 @@ export const createSubscription = async (req, res) => {
             payment_method_types: ["card"],
           },
           metadata: {
-            salonOwnerId: salonOwner._id.toString(),
+            ownerId: owner._id.toString(),
+            subscriptionType,
             planType,
             billingCycle,
           },
@@ -186,7 +209,9 @@ export const createSubscription = async (req, res) => {
     // ===== CREATE SUBSCRIPTION IN DATABASE =====
 
     const newSubscription = new SubscriptionSchemaModel({
-      salonID: salonOwner.salonProfileId || null,
+      salonID: subscriptionType === "Salon" ? profileId : null,
+      privateMassagerID: subscriptionType === "PrivateMassager" ? profileId : null,
+      subscriptionType,
       planType,
       billingCycle,
       nextBillingDate: nextBillingDate.toISOString(),
@@ -198,22 +223,28 @@ export const createSubscription = async (req, res) => {
 
     const savedSubscription = await newSubscription.save();
 
-    // ===== UPDATE SALON OWNER WITH SUBSCRIPTION ID =====
+    // ===== UPDATE OWNER WITH SUBSCRIPTION ID =====
 
-    salonOwner.subscriptionId = savedSubscription._id;
-    await salonOwner.save();
+    owner.subscriptionId = savedSubscription._id;
+    await owner.save();
 
-    // Update salon profile if exists
-    if (salonOwner.salonProfileId) {
+    // Update profile if exists based on subscription type
+    if (subscriptionType === "Salon" && owner.salonProfileId) {
       await SalonProfileSchemaModel.findByIdAndUpdate(
-        salonOwner.salonProfileId,
+        owner.salonProfileId,
+        { subscriptionID: savedSubscription._id }
+      );
+    } else if (subscriptionType === "PrivateMassager" && profileId) {
+      await PrivateMassagerSchemaModel.findByIdAndUpdate(
+        profileId,
         { subscriptionID: savedSubscription._id }
       );
     }
 
     console.log("Subscription created successfully:", {
       subscriptionId: savedSubscription._id,
-      ownerId: salonOwner._id,
+      ownerId: owner._id,
+      subscriptionType,
       planType,
       stripeSubscriptionId,
     });
@@ -223,7 +254,8 @@ export const createSubscription = async (req, res) => {
       message: "Subscription created successfully",
       data: {
         subscription: savedSubscription,
-        ownerId: salonOwner._id,
+        ownerId: owner._id,
+        subscriptionType,
         stripeCustomerId,
       },
     });
@@ -251,19 +283,19 @@ export const getSubscription = async (req, res) => {
       });
     }
 
-    const salonOwner = await UserProfileSchemaModel.findOne({
-      email: ownerEmail.toLowerCase().trim(),
-      name: ownerName.trim(),
+    const owner = await UserProfileSchemaModel.findOne({
+      salonOwnerEmail: ownerEmail.toLowerCase().trim(),
+      salonOwnerName: ownerName.trim(),
     }).populate("subscriptionId");
 
-    if (!salonOwner) {
+    if (!owner) {
       return res.status(404).json({
         success: false,
-        message: "Salon owner not found",
+        message: "Owner not found",
       });
     }
 
-    if (!salonOwner.subscriptionId) {
+    if (!owner.subscriptionId) {
       return res.status(404).json({
         success: false,
         message: "No subscription found for this owner",
@@ -272,7 +304,7 @@ export const getSubscription = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: salonOwner.subscriptionId,
+      data: owner.subscriptionId,
     });
   } catch (error) {
     console.error("Error fetching subscription:", error);
@@ -298,12 +330,12 @@ export const cancelSubscription = async (req, res) => {
       });
     }
 
-    const salonOwner = await UserProfileSchemaModel.findOne({
-      email: ownerEmail.toLowerCase().trim(),
-      name: ownerName.trim(),
+    const owner = await UserProfileSchemaModel.findOne({
+      salonOwnerEmail: ownerEmail.toLowerCase().trim(),
+      salonOwnerName: ownerName.trim(),
     });
 
-    if (!salonOwner || !salonOwner.subscriptionId) {
+    if (!owner || !owner.subscriptionId) {
       return res.status(404).json({
         success: false,
         message: "No active subscription found",
@@ -311,7 +343,7 @@ export const cancelSubscription = async (req, res) => {
     }
 
     const subscription = await SubscriptionSchemaModel.findById(
-      salonOwner.subscriptionId
+      owner.subscriptionId
     );
 
     if (!subscription) {
@@ -375,12 +407,12 @@ export const updateSubscription = async (req, res) => {
       });
     }
 
-    const salonOwner = await UserProfileSchemaModel.findOne({
-      email: ownerEmail.toLowerCase().trim(),
-      name: ownerName.trim(),
+    const owner = await UserProfileSchemaModel.findOne({
+      salonOwnerEmail: ownerEmail.toLowerCase().trim(),
+      salonOwnerName: ownerName.trim(),
     });
 
-    if (!salonOwner || !salonOwner.subscriptionId) {
+    if (!owner || !owner.subscriptionId) {
       return res.status(404).json({
         success: false,
         message: "No active subscription found",
@@ -388,7 +420,7 @@ export const updateSubscription = async (req, res) => {
     }
 
     const subscription = await SubscriptionSchemaModel.findById(
-      salonOwner.subscriptionId
+      owner.subscriptionId
     );
 
     if (!subscription) {

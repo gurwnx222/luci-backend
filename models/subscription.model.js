@@ -5,6 +5,17 @@ const SubscriptionSchema = new Schema(
     salonID: {
       type: Schema.Types.ObjectId,
       ref: "Salon Profile",
+      required: false,
+    },
+    privateMassagerID: {
+      type: Schema.Types.ObjectId,
+      ref: "Private Massager",
+      required: false,
+    },
+    subscriptionType: {
+      type: String,
+      enum: ["Salon", "PrivateMassager"],
+      required: false,
     },
     stripeSubscriptionId: {
       type: String,

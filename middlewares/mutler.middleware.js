@@ -63,6 +63,9 @@ const multerUpload = multer({
 // Export the middleware with .single() - this returns a function
 export const upload = multerUpload.single("imageFile"); // ⚠️ Make sure "imageFile" matches your form field name
 
+// Export middleware for multiple file uploads (for private massager photos)
+export const uploadMultiple = multerUpload.array("imageFiles", 10); // Allow up to 10 files with field name "imageFiles"
+
 // Error handling middleware for multer errors
 export const handleMulterError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {

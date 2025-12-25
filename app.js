@@ -5,6 +5,7 @@ import createSalonProfile from "./routes/salon.profile.route.js";
 import bookingRoutes from "./routes/booking.route.js";
 import notificationRoutes from "./routes/notification.route.js";
 import recommendationRoutes from "./routes/recommendation.route.js";
+import privateMassagerRoutes from "./routes/privateMassager.route.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -25,11 +26,6 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Explicit OPTIONS handler as fallback (before routes)
-app.options("*", cors(corsOptions), (req, res) => {
-  res.status(200).end();
-});
-
 // Basic middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -42,6 +38,7 @@ app.use("/api/v1/salons", createSalonProfile);
 app.use("/api/v1/bookings", bookingRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
 app.use("/api/v1/recommendations", recommendationRoutes);
+app.use("/api/private-massagers", privateMassagerRoutes);
 app.get("/", (req, res) => {
   res.json({
     message: "Express server is running!",
