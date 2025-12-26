@@ -1,9 +1,15 @@
-import { UserProfileSchemaModel } from "../models/index.js";
+import {
+  UserProfileSchemaModel,
+  SalonProfileSchemaModel,
+} from "../models/index.js";
 import mongoose from "mongoose";
 import { cleanUploadedFile } from "../utils/cleanUploadedFile.js";
-// registering salon owner profile
-// controllers/salon.profile.controller.js
+import { geocodeAddress } from "../utils/NodeGeocoder.js";
+import { UploadOnImageKit } from "../utils/ImageKit.js";
 
+// ============================================
+// Register Salon Owner Profile
+// ============================================
 export const registerSalonOwnerProfile = async (req, res) => {
   const uploadedFilePath = req.file?.path;
 
@@ -18,7 +24,7 @@ export const registerSalonOwnerProfile = async (req, res) => {
       ownerName,
     } = req.body;
 
-    // === SIMPLE OWNER REGISTRATION MODE (docs: SalonOwnerName + SalonOwnerEmail only) ===
+    // ===== SIMPLE OWNER REGISTRATION MODE =====
     // If salonName is missing but ownerEmail/ownerName are provided,
     // treat this as a plain salon-owner registration and skip salon profile logic.
     if (!salonName && ownerEmail && ownerName) {
@@ -36,9 +42,10 @@ export const registerSalonOwnerProfile = async (req, res) => {
           });
         }
 
+        // Create new owner
         const newOwner = new UserProfileSchemaModel({
-          salonOwnerName: ownerName,
-          salonOwnerEmail: ownerEmail,
+          salonOwnerName: ownerName.trim(),
+          salonOwnerEmail: ownerEmail.toLowerCase().trim(),
         });
         const savedOwner = await newOwner.save();
 
@@ -60,8 +67,9 @@ export const registerSalonOwnerProfile = async (req, res) => {
     }
 
     // ===== FULL SALON PROFILE CREATION MODE =====
-    // From here on we expect full salon profile payload (including salonName, image, location, etc.)
-    // ===== OWNER VALIDATION =====
+    // From here on we expect full salon profile payload
+
+    // ===== OWNER EMAIL & NAME VALIDATION =====
     if (!ownerEmail || !ownerName) {
       cleanUploadedFile(uploadedFilePath);
       return res.status(400).json({
@@ -80,20 +88,53 @@ export const registerSalonOwnerProfile = async (req, res) => {
       });
     }
 
-    const salonOwner = await UserProfileSchemaModel.findOne({
+    // ===== FIND OR CREATE SALON OWNER =====
+    let salonOwner = await UserProfileSchemaModel.findOne({
       salonOwnerEmail: ownerEmail.toLowerCase().trim(),
-      salonOwnerName: ownerName.trim(),
     });
 
+    // 🔥 AUTO-CREATE OWNER IF DOESN'T EXIST
     if (!salonOwner) {
-      cleanUploadedFile(uploadedFilePath);
-      return res.status(404).json({
-        success: false,
-        message:
-          "Salon owner not found with the provided email and name. Please ensure you are registered first.",
+      console.log("Salon owner not found. Creating new owner profile...");
+
+      salonOwner = new UserProfileSchemaModel({
+        salonOwnerName: ownerName.trim(),
+        salonOwnerEmail: ownerEmail.toLowerCase().trim(),
       });
+
+      try {
+        await salonOwner.save();
+        console.log("✅ Auto-created salon owner:", {
+          id: salonOwner._id,
+          email: salonOwner.salonOwnerEmail,
+          name: salonOwner.salonOwnerName,
+        });
+      } catch (saveError) {
+        cleanUploadedFile(uploadedFilePath);
+
+        // Handle duplicate email error
+        if (saveError.code === 11000) {
+          return res.status(409).json({
+            success: false,
+            message: "An owner with this email already exists",
+          });
+        }
+
+        console.error("Error creating owner:", saveError);
+        return res.status(500).json({
+          success: false,
+          message: "Failed to create salon owner profile",
+          error:
+            process.env.NODE_ENV === "development"
+              ? saveError.message
+              : undefined,
+        });
+      }
+    } else {
+      console.log("✅ Found existing salon owner:", salonOwner._id);
     }
 
+    // ===== CHECK IF OWNER ALREADY HAS A SALON PROFILE =====
     if (salonOwner.salonProfileId) {
       cleanUploadedFile(uploadedFilePath);
       return res.status(400).json({
@@ -104,8 +145,8 @@ export const registerSalonOwnerProfile = async (req, res) => {
       });
     }
 
-    // ===== VALIDATION SECTION =====
-    if (!salonName) {
+    // ===== SALON NAME VALIDATION =====
+    if (!salonName || typeof salonName !== "string" || !salonName.trim()) {
       cleanUploadedFile(uploadedFilePath);
       return res.status(400).json({
         success: false,
@@ -113,6 +154,7 @@ export const registerSalonOwnerProfile = async (req, res) => {
       });
     }
 
+    // ===== IMAGE VALIDATION =====
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -120,6 +162,7 @@ export const registerSalonOwnerProfile = async (req, res) => {
       });
     }
 
+    // ===== LOCATION VALIDATION =====
     if (!location || typeof location !== "object" || Array.isArray(location)) {
       cleanUploadedFile(uploadedFilePath);
       return res.status(400).json({
@@ -146,6 +189,7 @@ export const registerSalonOwnerProfile = async (req, res) => {
       });
     }
 
+    // ===== PRICE RANGE VALIDATION =====
     if (
       !priceRange ||
       (typeof priceRange !== "string" && typeof priceRange !== "number")
@@ -157,6 +201,7 @@ export const registerSalonOwnerProfile = async (req, res) => {
       });
     }
 
+    // ===== MASSAGE TYPES VALIDATION =====
     if (!Array.isArray(typesOfMassages) || typesOfMassages.length === 0) {
       cleanUploadedFile(uploadedFilePath);
       return res.status(400).json({
@@ -166,6 +211,7 @@ export const registerSalonOwnerProfile = async (req, res) => {
       });
     }
 
+    // ===== SUBSCRIPTION ID VALIDATION =====
     if (subscriptionID && !mongoose.Types.ObjectId.isValid(subscriptionID)) {
       cleanUploadedFile(uploadedFilePath);
       return res.status(400).json({
@@ -177,22 +223,24 @@ export const registerSalonOwnerProfile = async (req, res) => {
     // ===== GEOCODING SECTION =====
     let geoDataLatLot;
     try {
-      console.log("Geocoding address:", {
+      console.log("🌍 Geocoding address:", {
         streetAddress,
         city,
         province,
         country,
       });
+
       geoDataLatLot = await geocodeAddress({
         streetAddress,
         city,
         province,
         country,
       });
-      console.log("Geocoding result:", geoDataLatLot);
+
+      console.log("✅ Geocoding result:", geoDataLatLot);
     } catch (geoError) {
       cleanUploadedFile(uploadedFilePath);
-      console.error("Geocoding failed:", geoError);
+      console.error("❌ Geocoding failed:", geoError);
       return res.status(400).json({
         success: false,
         message:
@@ -213,12 +261,12 @@ export const registerSalonOwnerProfile = async (req, res) => {
     // ===== IMAGE UPLOAD SECTION =====
     let imageKitResponse;
     try {
-      console.log("Uploading image to ImageKit:", uploadedFilePath);
+      console.log("📤 Uploading image to ImageKit:", uploadedFilePath);
       imageKitResponse = await UploadOnImageKit(uploadedFilePath);
-      console.log("ImageKit upload successful:", imageKitResponse.url);
+      console.log("✅ ImageKit upload successful:", imageKitResponse.url);
     } catch (uploadError) {
       cleanUploadedFile(uploadedFilePath);
-      console.error("ImageKit upload failed:", uploadError);
+      console.error("❌ ImageKit upload failed:", uploadError);
       return res.status(500).json({
         success: false,
         message: "Failed to upload image to storage",
@@ -228,19 +276,19 @@ export const registerSalonOwnerProfile = async (req, res) => {
             : undefined,
       });
     } finally {
+      // Clean up local file after upload attempt
       cleanUploadedFile(uploadedFilePath);
     }
 
-    // ===== DATABASE SAVE SECTION =====
-    // 🔥 KEY FIX: Add ownerId to the salon profile
+    // ===== CREATE SALON PROFILE =====
     const newSalonProfile = new SalonProfileSchemaModel({
       salonName: salonName.trim(),
       salonImage: imageKitResponse.url,
       location: {
-        streetAddress,
-        city,
-        province,
-        country,
+        streetAddress: streetAddress.trim(),
+        city: city.trim(),
+        province: province.trim(),
+        country: country.trim(),
         latitude: parseFloat(geoDataLatLot.latitude),
         longitude: parseFloat(geoDataLatLot.longitude),
       },
@@ -252,31 +300,36 @@ export const registerSalonOwnerProfile = async (req, res) => {
 
     const savedSalonProfile = await newSalonProfile.save();
 
-    // ===== UPDATE SALON OWNER WITH PROFILE ID =====
+    // ===== LINK SALON PROFILE TO OWNER =====
     salonOwner.salonProfileId = savedSalonProfile._id;
     await salonOwner.save();
 
-    console.log("Salon profile created and linked to owner:", {
+    console.log("✅ Salon profile created and linked to owner:", {
       profileId: savedSalonProfile._id,
       ownerId: salonOwner._id,
-      ownerEmail: ownerEmail,
-      ownerName: ownerName,
+      ownerEmail: salonOwner.salonOwnerEmail,
+      ownerName: salonOwner.salonOwnerName,
     });
 
+    // ===== SUCCESS RESPONSE =====
     return res.status(201).json({
       success: true,
       message: "Salon profile created and linked to your account successfully",
       data: {
         salonProfile: savedSalonProfile,
-        ownerId: salonOwner._id,
-        ownerEmail: salonOwner.salonOwnerEmail,
-        ownerName: salonOwner.salonOwnerName,
+        owner: {
+          id: salonOwner._id,
+          email: salonOwner.salonOwnerEmail,
+          name: salonOwner.salonOwnerName,
+        },
       },
     });
   } catch (error) {
+    // Clean up uploaded file in case of any error
     cleanUploadedFile(uploadedFilePath);
-    console.error("Error creating salon profile:", error);
+    console.error("❌ Error creating salon profile:", error);
 
+    // Handle Mongoose validation errors
     if (error.name === "ValidationError") {
       const errors = Object.values(error.errors).map((err) => err.message);
       return res.status(400).json({
@@ -286,6 +339,7 @@ export const registerSalonOwnerProfile = async (req, res) => {
       });
     }
 
+    // Handle duplicate key errors
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern || {})[0];
       return res.status(409).json({
@@ -294,6 +348,7 @@ export const registerSalonOwnerProfile = async (req, res) => {
       });
     }
 
+    // Generic error response
     return res.status(500).json({
       success: false,
       message: "Error creating salon profile",
@@ -301,40 +356,53 @@ export const registerSalonOwnerProfile = async (req, res) => {
     });
   }
 };
-// fetching salon owner profile by ID
+
+// ============================================
+// Fetch Salon Owner Profile by ID
+// ============================================
 export const fetchSalonOwnerProfile = async (req, res) => {
   try {
     const { _id } = req.body;
+
+    // Validate ID presence
     if (!_id) {
       return res.status(400).json({
+        success: false,
         message: "ID is not provided",
-        status: 400,
       });
     }
+
+    // Validate ID format
     if (!mongoose.Types.ObjectId.isValid(_id)) {
       return res.status(400).json({
+        success: false,
         message: "Invalid ID format",
-        status: 400,
       });
     }
-    const fetchingSalonOwner = await UserProfileSchemaModel.findById(_id);
-    if (!fetchingSalonOwner) {
+
+    // Fetch salon owner with populated salon profile
+    const salonOwner = await UserProfileSchemaModel.findById(_id).populate(
+      "salonProfileId"
+    );
+
+    if (!salonOwner) {
       return res.status(404).json({
+        success: false,
         message: "Salon owner profile not found",
-        status: 404,
       });
     }
+
     return res.status(200).json({
+      success: true,
       message: "Salon owner profile fetched successfully",
-      status: 200,
-      data: fetchingSalonOwner,
+      data: salonOwner,
     });
   } catch (error) {
-    console.error("Error fetching salon owner profile:", error);
+    console.error("❌ Error fetching salon owner profile:", error);
     return res.status(500).json({
+      success: false,
       message: "Internal server error while fetching profile",
-      status: 500,
-      error: error.message,
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };

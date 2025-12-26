@@ -15,7 +15,7 @@ import { cleanUploadedFile } from "../utils/cleanUploadedFile.js";
 
 export const createSalonProfile = async (req, res) => {
   const uploadedFilePath = req.file?.path;
-
+  console.log("Endpoint is fired by the frontend");
   try {
     const {
       salonName,

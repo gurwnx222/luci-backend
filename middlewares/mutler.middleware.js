@@ -61,7 +61,7 @@ const multerUpload = multer({
 });
 
 // Export the middleware with .single() - this returns a function
-export const upload = multerUpload.single("imageFile"); // ⚠️ Make sure "imageFile" matches your form field name
+export const upload = multerUpload.single("salonImage"); // ⚠️ Make sure "salonImage" matches your form field name
 
 // Error handling middleware for multer errors
 export const handleMulterError = (err, req, res, next) => {

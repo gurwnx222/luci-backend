@@ -17,25 +17,26 @@ const app = express();
 const corsOptions = {
   origin: "*", // Allow all origins (you can restrict this in production)
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization"],
+  allowedHeaders: [
+    "Origin",
+    "X-Requested-With",
+    "Content-Type",
+    "Accept",
+    "Authorization",
+  ],
   credentials: false, // Set to true if you need to send cookies
   preflightContinue: false,
-  optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
+  optionsSuccessStatus: 200, // Some legacy browsers (IE11, various SmartTVs) choke on 204
 };
 
 app.use(cors(corsOptions));
-
-// Explicit OPTIONS handler as fallback (before routes)
-app.options("*", cors(corsOptions), (req, res) => {
-  res.status(200).end();
-});
 
 // Basic middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 // main route
-app.use("/api/v1", salonOwnerRoutes);
+app.use("/api/v1/", salonOwnerRoutes);
 // Salon profile routes are available under both /register and /salons for backward compatibility
 app.use("/api/v1/register", createSalonProfile);
 app.use("/api/v1/salons", createSalonProfile);

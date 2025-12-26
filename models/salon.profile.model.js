@@ -53,7 +53,7 @@ const SalonProfileSchema = new Schema(
     },
     priceRange: {
       type: String,
-      min: 10,
+      min: 0,
       max: 5000,
       required: true,
     },
