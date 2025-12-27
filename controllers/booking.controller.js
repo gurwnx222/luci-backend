@@ -40,7 +40,8 @@ export const createBookingRequest = async (req, res) => {
     if (salonId && privateMassagerId) {
       return res.status(400).json({
         success: false,
-        error: "Cannot provide both salonId and privateMassagerId. Provide only one.",
+        error:
+          "Cannot provide both salonId and privateMassagerId. Provide only one.",
       });
     }
 
@@ -54,7 +55,8 @@ export const createBookingRequest = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        error: "Missing required fields: salonOwnerId, firebaseUID, name, email, requestedDateTime",
+        error:
+          "Missing required fields: salonOwnerId, firebaseUID, name, email, requestedDateTime",
       });
     }
 
@@ -144,7 +146,7 @@ export const patchBookingRequest = async (req, res) => {
   try {
     const { bookingId } = req.params;
     const { status, salonOwnerId } = req.body;
-    
+
     // Validate status
     const validStatuses = [
       "pending",
@@ -182,7 +184,9 @@ export const patchBookingRequest = async (req, res) => {
     if (status === "accepted") {
       try {
         // Register/get customer in chat system
-        const customerChatUser = await getChatUser(oldBooking.requester.firebaseUID);
+        const customerChatUser = await getChatUser(
+          oldBooking.requester.firebaseUID
+        );
         let customerUserId = null;
 
         if (!customerChatUser) {
@@ -332,12 +336,20 @@ export const getAllBookingsForSalon = async (req, res) => {
 
     // Build populate options based on provider type
     const bookings = await BookingSchemaModel.find(query)
-      .populate("reciever.salonId", "salonName salonImage location priceRange typesOfMassages")
-      .populate("reciever.privateMassagerId", "profilePhoto photos height weight aboutMe occupation gender")
+      .populate(
+        "reciever.salonId",
+        "salonName salonImage location priceRange typesOfMassages"
+      )
+      .populate(
+        "reciever.privateMassagerId",
+        "profilePhoto photos height weight aboutMe occupation gender"
+      )
       .sort({ "appointmentDetails.requestedDateTime": -1 });
-    
-    console.log(`✅ Found ${bookings.length} bookings for salon owner ${salonOwnerId}`);
-    
+
+    console.log(
+      `✅ Found ${bookings.length} bookings for salon owner ${salonOwnerId}`
+    );
+
     res.json({
       success: true,
       count: bookings.length,
@@ -392,8 +404,14 @@ export const getBookingById = async (req, res) => {
     }
 
     const booking = await BookingSchemaModel.findById(id)
-      .populate("reciever.salonId", "salonName salonImage location priceRange typesOfMassages")
-      .populate("reciever.privateMassagerId", "profilePhoto photos height weight aboutMe occupation gender")
+      .populate(
+        "reciever.salonId",
+        "salonName salonImage location priceRange typesOfMassages"
+      )
+      .populate(
+        "reciever.privateMassagerId",
+        "profilePhoto photos height weight aboutMe occupation gender"
+      )
       .populate("reciever.salonOwnerID", "salonOwnerName salonOwnerEmail");
 
     if (!booking) {

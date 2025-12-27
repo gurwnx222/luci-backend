@@ -34,9 +34,8 @@ export const createPrivateMassager = async (req, res) => {
       subscriptionID,
     } = cleanedBody;
 
-    // ===== OWNER VALIDATION =====
+    // ===== OWNER EMAIL & NAME VALIDATION =====
     if (!ownerEmail || !ownerName) {
-      // Clean up uploaded files
       uploadedFiles.forEach((file) => cleanUploadedFile(file?.path));
       return res.status(400).json({
         success: false,
@@ -59,22 +58,53 @@ export const createPrivateMassager = async (req, res) => {
       });
     }
 
-    // Find the owner by email and name
-    const owner = await UserProfileSchemaModel.findOne({
+    // ===== FIND OR CREATE OWNER =====
+    let owner = await UserProfileSchemaModel.findOne({
       salonOwnerEmail: ownerEmail.toLowerCase().trim(),
-      salonOwnerName: ownerName.trim(),
     });
 
+    // 🔥 AUTO-CREATE OWNER IF DOESN'T EXIST
     if (!owner) {
-      uploadedFiles.forEach((file) => cleanUploadedFile(file?.path));
-      return res.status(404).json({
-        success: false,
-        message:
-          "Owner not found with the provided email and name. Please ensure you are registered first.",
+      console.log("Owner not found. Creating new owner profile...");
+
+      owner = new UserProfileSchemaModel({
+        salonOwnerName: ownerName.trim(),
+        salonOwnerEmail: ownerEmail.toLowerCase().trim(),
       });
+
+      try {
+        await owner.save();
+        console.log("✅ Auto-created owner:", {
+          id: owner._id,
+          email: owner.salonOwnerEmail,
+          name: owner.salonOwnerName,
+        });
+      } catch (saveError) {
+        uploadedFiles.forEach((file) => cleanUploadedFile(file?.path));
+
+        // Handle duplicate email error
+        if (saveError.code === 11000) {
+          return res.status(409).json({
+            success: false,
+            message: "An owner with this email already exists",
+          });
+        }
+
+        console.error("❌ Error creating owner:", saveError);
+        return res.status(500).json({
+          success: false,
+          message: "Failed to create owner profile",
+          error:
+            process.env.NODE_ENV === "development"
+              ? saveError.message
+              : undefined,
+        });
+      }
+    } else {
+      console.log("✅ Found existing owner:", owner._id);
     }
 
-    // Check if the owner already has a private massager profile
+    // ===== CHECK IF OWNER ALREADY HAS A PRIVATE MASSAGER PROFILE =====
     const existingProfile = await PrivateMassagerSchemaModel.findOne({
       ownerId: owner._id,
     });
@@ -142,30 +172,36 @@ export const createPrivateMassager = async (req, res) => {
     if (uploadedFiles.length > 0) {
       try {
         const firstFile = uploadedFiles[0];
-        console.log("Uploading profile photo to ImageKit:", firstFile.path);
+        console.log("📤 Uploading profile photo to ImageKit:", firstFile.path);
         const imageKitResponse = await UploadOnImageKit(firstFile.path);
         profilePhoto = imageKitResponse.url;
-        console.log("Profile photo upload successful:", profilePhoto);
+        console.log("✅ Profile photo upload successful:", profilePhoto);
         cleanUploadedFile(firstFile.path);
 
         // Upload additional photos if there are more files
         for (let i = 1; i < uploadedFiles.length; i++) {
           const file = uploadedFiles[i];
           try {
-            console.log("Uploading additional photo to ImageKit:", file.path);
+            console.log(
+              "📤 Uploading additional photo to ImageKit:",
+              file.path
+            );
             const additionalPhotoResponse = await UploadOnImageKit(file.path);
             photos.push(additionalPhotoResponse.url);
-            console.log("Additional photo upload successful:", additionalPhotoResponse.url);
+            console.log(
+              "✅ Additional photo upload successful:",
+              additionalPhotoResponse.url
+            );
             cleanUploadedFile(file.path);
           } catch (uploadError) {
-            console.error("Failed to upload additional photo:", uploadError);
+            console.error("❌ Failed to upload additional photo:", uploadError);
             cleanUploadedFile(file.path);
             // Continue with other photos even if one fails
           }
         }
       } catch (uploadError) {
         uploadedFiles.forEach((file) => cleanUploadedFile(file?.path));
-        console.error("ImageKit upload failed:", uploadError);
+        console.error("❌ ImageKit upload failed:", uploadError);
         return res.status(500).json({
           success: false,
           message: "Failed to upload image to storage",
@@ -193,28 +229,31 @@ export const createPrivateMassager = async (req, res) => {
 
     const savedPrivateMassager = await newPrivateMassager.save();
 
-    console.log("Private massager profile created and linked to owner:", {
+    console.log("✅ Private massager profile created and linked to owner:", {
       profileId: savedPrivateMassager._id,
       ownerId: owner._id,
-      ownerEmail: ownerEmail,
-      ownerName: ownerName,
+      ownerEmail: owner.salonOwnerEmail,
+      ownerName: owner.salonOwnerName,
     });
 
     return res.status(201).json({
       success: true,
-      message: "Private massager profile created and linked to your account successfully",
+      message:
+        "Private massager profile created and linked to your account successfully",
       data: {
         privateMassager: savedPrivateMassager,
-        ownerId: owner._id,
-        ownerEmail: owner.salonOwnerEmail,
-        ownerName: owner.salonOwnerName,
+        owner: {
+          id: owner._id,
+          email: owner.salonOwnerEmail,
+          name: owner.salonOwnerName,
+        },
       },
     });
   } catch (error) {
     // Clean up files in case of any unhandled errors
     uploadedFiles.forEach((file) => cleanUploadedFile(file?.path));
 
-    console.error("Error creating private massager profile:", error);
+    console.error("❌ Error creating private massager profile:", error);
 
     // Handle Mongoose validation errors
     if (error.name === "ValidationError") {
@@ -231,7 +270,9 @@ export const createPrivateMassager = async (req, res) => {
       const field = Object.keys(error.keyPattern || {})[0];
       return res.status(409).json({
         success: false,
-        message: `A private massager with this ${field || "information"} already exists`,
+        message: `A private massager with this ${
+          field || "information"
+        } already exists`,
       });
     }
 
@@ -253,6 +294,7 @@ export const getPrivateMassagers = async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const privateMassagers = await PrivateMassagerSchemaModel.find({})
+      .populate("ownerId", "salonOwnerName salonOwnerEmail") // Populate owner info
       .select(
         "_id profilePhoto photos height weight aboutMe occupation gender ownerId subscriptionID"
       )
@@ -272,7 +314,7 @@ export const getPrivateMassagers = async (req, res) => {
       data: privateMassagers,
     });
   } catch (error) {
-    console.error("Error fetching private massagers:", error);
+    console.error("❌ Error fetching private massagers:", error);
     return res.status(500).json({
       success: false,
       message: "Error fetching private massagers",
@@ -297,6 +339,7 @@ export const getPrivateMassagerById = async (req, res) => {
     }
 
     const privateMassager = await PrivateMassagerSchemaModel.findById(id)
+      .populate("ownerId", "salonOwnerName salonOwnerEmail") // Populate owner info
       .select(
         "_id profilePhoto photos height weight aboutMe occupation gender ownerId subscriptionID"
       )
@@ -315,7 +358,7 @@ export const getPrivateMassagerById = async (req, res) => {
       data: privateMassager,
     });
   } catch (error) {
-    console.error("Error fetching private massager profile:", error);
+    console.error("❌ Error fetching private massager profile:", error);
     return res.status(500).json({
       success: false,
       message: "Error fetching private massager profile",
@@ -340,14 +383,8 @@ export const updatePrivateMassager = async (req, res) => {
     });
 
     const { id } = req.params;
-    const {
-      height,
-      weight,
-      aboutMe,
-      occupation,
-      gender,
-      subscriptionID,
-    } = cleanedBody;
+    const { height, weight, aboutMe, occupation, gender, subscriptionID } =
+      cleanedBody;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       uploadedFiles.forEach((file) => cleanUploadedFile(file?.path));
@@ -427,8 +464,10 @@ export const updatePrivateMassager = async (req, res) => {
     if (uploadedFiles.length > 0) {
       try {
         const firstFile = uploadedFiles[0];
+        console.log("📤 Uploading updated profile photo to ImageKit");
         const imageKitResponse = await UploadOnImageKit(firstFile.path);
         privateMassager.profilePhoto = imageKitResponse.url;
+        console.log("✅ Profile photo updated successfully");
         cleanUploadedFile(firstFile.path);
 
         // Add additional photos if provided
@@ -436,21 +475,26 @@ export const updatePrivateMassager = async (req, res) => {
         for (let i = 1; i < uploadedFiles.length; i++) {
           const file = uploadedFiles[i];
           try {
+            console.log("📤 Uploading additional photo to ImageKit");
             const photoResponse = await UploadOnImageKit(file.path);
             newPhotos.push(photoResponse.url);
+            console.log("✅ Additional photo uploaded successfully");
             cleanUploadedFile(file.path);
           } catch (uploadError) {
-            console.error("Failed to upload additional photo:", uploadError);
+            console.error("❌ Failed to upload additional photo:", uploadError);
             cleanUploadedFile(file.path);
           }
         }
         // Append new photos to existing photos array
         if (newPhotos.length > 0) {
-          privateMassager.photos = [...(privateMassager.photos || []), ...newPhotos];
+          privateMassager.photos = [
+            ...(privateMassager.photos || []),
+            ...newPhotos,
+          ];
         }
       } catch (uploadError) {
         uploadedFiles.forEach((file) => cleanUploadedFile(file?.path));
-        console.error("ImageKit upload failed:", uploadError);
+        console.error("❌ ImageKit upload failed:", uploadError);
         return res.status(500).json({
           success: false,
           message: "Failed to upload image to storage",
@@ -464,6 +508,10 @@ export const updatePrivateMassager = async (req, res) => {
 
     const updatedPrivateMassager = await privateMassager.save();
 
+    console.log("✅ Private massager profile updated successfully:", {
+      profileId: updatedPrivateMassager._id,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Private massager profile updated successfully",
@@ -472,7 +520,7 @@ export const updatePrivateMassager = async (req, res) => {
   } catch (error) {
     uploadedFiles.forEach((file) => cleanUploadedFile(file?.path));
 
-    console.error("Error updating private massager profile:", error);
+    console.error("❌ Error updating private massager profile:", error);
 
     if (error.name === "ValidationError") {
       const errors = Object.values(error.errors).map((err) => err.message);
@@ -506,7 +554,9 @@ export const deletePrivateMassager = async (req, res) => {
       });
     }
 
-    const privateMassager = await PrivateMassagerSchemaModel.findByIdAndDelete(id);
+    const privateMassager = await PrivateMassagerSchemaModel.findByIdAndDelete(
+      id
+    );
 
     if (!privateMassager) {
       return res.status(404).json({
@@ -515,13 +565,17 @@ export const deletePrivateMassager = async (req, res) => {
       });
     }
 
+    console.log("✅ Private massager profile deleted successfully:", {
+      profileId: privateMassager._id,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Private massager profile deleted successfully",
       data: privateMassager,
     });
   } catch (error) {
-    console.error("Error deleting private massager profile:", error);
+    console.error("❌ Error deleting private massager profile:", error);
     return res.status(500).json({
       success: false,
       message: "Error deleting private massager profile",
@@ -529,4 +583,3 @@ export const deletePrivateMassager = async (req, res) => {
     });
   }
 };
-
