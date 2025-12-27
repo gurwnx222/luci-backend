@@ -62,24 +62,20 @@ export const createBookingRequest = async (req, res) => {
     const providerType = salonId ? "salon" : "privateMassager";
 
     // 1. Create the booking
-    const bookingData = {
-      reciever: {
-        salonOwnerID: salonOwnerId,
-        providerType: providerType,
-      },
+    const recieverData = {
+      salonOwnerID: salonOwnerId,
+      providerType: providerType,
     };
 
     // Add the appropriate provider ID
     if (salonId) {
-      bookingData.reciever.salonId = salonId;
+      recieverData.salonId = salonId;
     } else {
-      bookingData.reciever.privateMassagerId = privateMassagerId;
+      recieverData.privateMassagerId = privateMassagerId;
     }
 
     const booking = await BookingSchemaModel.create({
-      reciever: {
-        ...bookingData.reciever,
-      },
+      reciever: recieverData,
       requester: {
         firebaseUID,
         name,

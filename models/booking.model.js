@@ -1,4 +1,3 @@
-import { request } from "express";
 import { mongoose, Schema } from "mongoose";
 
 const BookingSchema = new Schema(
@@ -78,26 +77,8 @@ const BookingSchema = new Schema(
   { timestamps: true }
 );
 
-// Pre-save hook to automatically set providerType based on which ID is provided
-BookingSchema.pre("save", function (next) {
-  if (!this.reciever.providerType) {
-    if (this.reciever.salonId) {
-      this.reciever.providerType = "salon";
-    } else if (this.reciever.privateMassagerId) {
-      this.reciever.providerType = "privateMassager";
-    }
-  }
-  next();
-});
-
-// Validation: Either salonId or privateMassagerId must be provided
-BookingSchema.pre("validate", function (next) {
-  if (!this.reciever.salonId && !this.reciever.privateMassagerId) {
-    next(new Error("Either salonId or privateMassagerId must be provided"));
-  } else {
-    next();
-  }
-});
+// Note: providerType is set in the controller when creating bookings
+// No need for pre-save hook since we explicitly set it during creation
 
 const BookingSchemaModel = mongoose.model("Booking", BookingSchema);
 
